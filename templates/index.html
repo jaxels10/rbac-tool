@@ -107,6 +107,14 @@
         <div class="stat-label">ClusterRole Bindings</div>
       </div>
     </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-stat shadow-sm text-center p-3"
+           style="--card-color:#d97706" data-section="findings" onclick="showSection('findings')">
+        <div class="stat-icon">&#x26A0;&#xFE0F;</div>
+        <div class="stat-num" id="cnt-findings">–</div>
+        <div class="stat-label">Findings</div>
+      </div>
+    </div>
   </div>
 
   <!-- Filters -->
@@ -172,6 +180,19 @@
     </div>
   </div>
 
+  <div id="section-findings" class="data-section" style="display:none">
+    <div class="section-title">Findings
+      <span class="click-hint ms-2">— open issues with your RBAC configuration</span>
+    </div>
+    <div id="findings-list"></div>
+    <div id="findings-dismissed-wrap" style="display:none">
+      <button class="btn btn-link btn-sm text-muted px-0 mt-2" onclick="toggleDismissed()">
+        <span id="dismissed-toggle-label">Show dismissed</span>
+      </button>
+      <div id="findings-dismissed" style="display:none"></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- SA Detail Modal -->
@@ -189,10 +210,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  let lastJson   = null;
-  let currentNs  = '';
+  let lastJson    = null;
+  let currentNs   = '';
   let currentName = '';
-  const saModal  = new bootstrap.Modal(document.getElementById('saModal'));
+  let dismissedVisible = false;
+  const saModal   = new bootstrap.Modal(document.getElementById('saModal'));
 
   // ---- Section switching ----
 
@@ -223,16 +245,20 @@
   }
 
   function render(data) {
+    const findings = data.Findings || [];
+    const openCount = findings.filter(f => f.Feedback !== 'dismissed').length;
     const counts = {
-      sa:    (data.ServiceAccounts     || []).length,
-      roles: (data.Roles               || []).length,
-      rb:    (data.RoleBindings        || []).length,
-      cr:    (data.ClusterRoles        || []).length,
-      crb:   (data.ClusterRoleBindings || []).length,
+      sa:       (data.ServiceAccounts     || []).length,
+      roles:    (data.Roles               || []).length,
+      rb:       (data.RoleBindings        || []).length,
+      cr:       (data.ClusterRoles        || []).length,
+      crb:      (data.ClusterRoleBindings || []).length,
+      findings: openCount,
     };
     for (const [k, v] of Object.entries(counts)) {
       document.getElementById('cnt-' + k).textContent = v;
     }
+    renderFindings(findings);
 
     const nsFilter = document.getElementById('nsFilter');
     const selected = nsFilter.value;
@@ -458,8 +484,89 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ---- Findings ----
+
+  function renderFindings(findings) {
+    const open       = findings.filter(f => f.Feedback !== 'dismissed');
+    const dismissed  = findings.filter(f => f.Feedback === 'dismissed');
+
+    const list = document.getElementById('findings-list');
+    if (!open.length) {
+      list.innerHTML = '<div class="alert alert-success">No open findings — your RBAC configuration looks clean.</div>';
+    } else {
+      list.innerHTML = open.map(f => findingCardHTML(f)).join('');
+    }
+
+    const wrap = document.getElementById('findings-dismissed-wrap');
+    const dismissedEl = document.getElementById('findings-dismissed');
+    if (dismissed.length) {
+      wrap.style.display = '';
+      document.getElementById('dismissed-toggle-label').textContent =
+        dismissedVisible ? `Hide dismissed (${dismissed.length})` : `Show dismissed (${dismissed.length})`;
+      dismissedEl.innerHTML = dismissed.map(f => findingCardHTML(f)).join('');
+      dismissedEl.style.display = dismissedVisible ? '' : 'none';
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
+
+  function findingCardHTML(f) {
+    const isDismissed  = f.Feedback === 'dismissed';
+    const isConfirmed  = f.Feedback === 'confirmed';
+    const borderColor  = isDismissed ? '#e2e8f0' : isConfirmed ? '#16a34a' : '#d97706';
+    const opacity      = isDismissed ? 'opacity:.5;' : '';
+    const resources    = (f.Resources || []).map(r => `<code class="me-2" style="font-size:.78rem">${esc(r)}</code>`).join('');
+
+    let buttons = '';
+    if (isDismissed) {
+      buttons = `<button class="btn btn-sm btn-outline-secondary" onclick="sendFeedback('${esc(f.ID)}','')">Undo dismiss</button>`;
+    } else if (isConfirmed) {
+      buttons = `
+        <span class="badge bg-success me-2">&#x2713; Correctly identified</span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="sendFeedback('${esc(f.ID)}','')">Undo</button>`;
+    } else {
+      buttons = `
+        <button class="btn btn-sm btn-success me-2" onclick="sendFeedback('${esc(f.ID)}','confirmed')">&#x2713; Correctly identified</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="sendFeedback('${esc(f.ID)}','dismissed')">&#x2715; Not an issue</button>`;
+    }
+
+    return `<div class="card mb-3 shadow-sm" style="border-left:4px solid ${borderColor};${opacity}">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <span class="badge me-1" style="background:#d97706">${esc(f.Severity)}</span>
+            <span class="badge bg-light text-dark border" style="font-size:.7rem">${esc(f.Rule)}</span>
+            <div class="fw-semibold mt-1">${esc(f.Title)}</div>
+            <div class="text-muted mt-1" style="font-size:.85rem">${esc(f.Description)}</div>
+            ${resources ? `<div class="mt-2">${resources}</div>` : ''}
+          </div>
+          <div class="d-flex align-items-center gap-2 flex-shrink-0">${buttons}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  async function sendFeedback(id, status) {
+    await fetch('/api/feedback', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id, status}),
+    });
+    // Immediately re-fetch so the UI reflects the change
+    lastJson = null;
+    fetchAndRender();
+  }
+
+  function toggleDismissed() {
+    dismissedVisible = !dismissedVisible;
+    const el = document.getElementById('findings-dismissed');
+    el.style.display = dismissedVisible ? '' : 'none';
+    document.getElementById('dismissed-toggle-label').textContent =
+      dismissedVisible ? `Hide dismissed` : `Show dismissed`;
+  }
+
   fetchAndRender();
-  setInterval(fetchAndRender, 5000);
+  setInterval(fetchAndRender, 2000);
 </script>
 </body>
 </html>

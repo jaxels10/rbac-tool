@@ -19,7 +19,8 @@ import (
 
 // Client wraps the Kubernetes clientset.
 type Client struct {
-	cs *kubernetes.Clientset
+	cs       *kubernetes.Clientset
+	feedback *FeedbackStore
 }
 
 // NewClient creates a Kubernetes client. It tries in-cluster config first,
@@ -41,7 +42,7 @@ func NewClient() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create clientset: %w", err)
 	}
-	return &Client{cs: cs}, nil
+	return &Client{cs: cs, feedback: newFeedbackStore(cs)}, nil
 }
 
 // ---- View models ----
@@ -53,6 +54,7 @@ type RBACData struct {
 	ClusterRoles        []RoleView
 	ClusterRoleBindings []BindingView
 	Namespaces          []string
+	Findings            []Finding
 }
 
 type ServiceAccountView struct {
@@ -246,7 +248,19 @@ func (c *Client) GetRBACData(ctx context.Context) (*RBACData, error) {
 	}
 	sort.Strings(data.Namespaces)
 
+	// Findings — run analysis with persisted feedback
+	fb, _ := c.feedback.All(ctx) // non-fatal: empty feedback on error
+	data.Findings = Analyze(data, fb)
+
 	return data, nil
+}
+
+// SetFeedback persists feedback for a finding.
+func (c *Client) SetFeedback(ctx context.Context, findingID, status string) error {
+	if status == "" {
+		return c.feedback.Delete(ctx, findingID)
+	}
+	return c.feedback.Set(ctx, findingID, status)
 }
 
 // ---- Converters ----

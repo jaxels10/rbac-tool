@@ -4,7 +4,7 @@ image:
   repository: ghcr.io/jaxels10/rbac-tool
   pullPolicy: IfNotPresent
   # Overrides the image tag; defaults to the chart appVersion
-  tag: "sha-9b0f6ca"
+  tag: "sha-52f0ba8"
 
 imagePullSecrets: []
 nameOverride: ""
