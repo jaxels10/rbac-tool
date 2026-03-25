@@ -186,12 +186,10 @@
     </div>
     <div id="findings-list"></div>
     <div id="findings-past-wrap" style="display:none" class="mt-4">
-      <div class="d-flex align-items-center justify-content-between mb-2">
+      <div class="mb-2">
         <button class="btn btn-link btn-sm text-muted px-0" onclick="togglePastDecisions()">
           <span id="past-toggle-label">Show past decisions (0)</span>
         </button>
-        <a href="/api/feedback/export" download="rbac-tool-model.json"
-           class="btn btn-sm btn-outline-secondary">&#x2B07; Download model</a>
       </div>
       <div id="findings-past" style="display:none"></div>
     </div>
@@ -250,7 +248,7 @@
 
   function render(data) {
     const findings = data.Findings || [];
-    const openCount = findings.filter(f => f.Feedback !== 'dismissed').length;
+    const openCount = findings.filter(f => !f.Feedback).length;
     const counts = {
       sa:       (data.ServiceAccounts     || []).length,
       roles:    (data.Roles               || []).length,
