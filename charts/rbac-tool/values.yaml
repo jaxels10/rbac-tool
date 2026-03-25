@@ -1,10 +1,10 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/user/rbac-tool
+  repository: ghcr.io/jaxels10/rbac-tool
   pullPolicy: IfNotPresent
   # Overrides the image tag; defaults to the chart appVersion
-  tag: ""
+  tag: "main"
 
 imagePullSecrets: []
 nameOverride: ""

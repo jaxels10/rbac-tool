@@ -3,10 +3,12 @@ package main
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"syscall"
 
 	"github.com/user/rbac-tool/internal/k8s"
 )
@@ -38,7 +40,7 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.Execute(w, data); err != nil {
+		if err := tmpl.Execute(w, data); err != nil && !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
 			log.Printf("template error: %v", err)
 		}
 	})
@@ -50,7 +52,7 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(data); err != nil {
+		if err := json.NewEncoder(w).Encode(data); err != nil && !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
 			log.Printf("json encode error: %v", err)
 		}
 	})
