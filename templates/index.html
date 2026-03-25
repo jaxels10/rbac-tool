@@ -66,8 +66,8 @@
 <div class="container-fluid px-4">
 
   <!-- Clickable summary cards -->
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-md-4 col-lg-2">
+  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-6 g-3 mb-4">
+    <div class="col">
       <div class="card card-stat shadow-sm text-center p-3 active"
            style="--card-color:#16a34a" data-section="sa" onclick="showSection('sa')">
         <div class="stat-icon">&#x1F464;</div>
@@ -75,7 +75,7 @@
         <div class="stat-label">Service Accounts</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
       <div class="card card-stat shadow-sm text-center p-3"
            style="--card-color:#2563eb" data-section="roles" onclick="showSection('roles')">
         <div class="stat-icon">&#x1F4CB;</div>
@@ -83,7 +83,7 @@
         <div class="stat-label">Roles</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
       <div class="card card-stat shadow-sm text-center p-3"
            style="--card-color:#0284c7" data-section="rb" onclick="showSection('rb')">
         <div class="stat-icon">&#x1F517;</div>
@@ -91,7 +91,7 @@
         <div class="stat-label">Role Bindings</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
       <div class="card card-stat shadow-sm text-center p-3"
            style="--card-color:#7c3aed" data-section="cr" onclick="showSection('cr')">
         <div class="stat-icon">&#x1F6E1;&#xFE0F;</div>
@@ -99,7 +99,7 @@
         <div class="stat-label">Cluster Roles</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
       <div class="card card-stat shadow-sm text-center p-3"
            style="--card-color:#0d9488" data-section="crb" onclick="showSection('crb')">
         <div class="stat-icon">&#x1F310;</div>
@@ -107,11 +107,11 @@
         <div class="stat-label">ClusterRole Bindings</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
       <div class="card card-stat shadow-sm text-center p-3"
            style="--card-color:#d97706" data-section="findings" onclick="showSection('findings')">
         <div class="stat-icon">&#x26A0;&#xFE0F;</div>
-        <div class="stat-num" id="cnt-findings">–</div>
+        <div class="stat-num" id="cnt-findings">0</div>
         <div class="stat-label">Findings</div>
       </div>
     </div>
