@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -27,21 +27,14 @@ func main() {
 		log.Fatalf("failed to create kubernetes client: %v", err)
 	}
 
-	tmpl := template.Must(template.New("index").Parse(indexHTML))
-
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
-		data, err := client.GetRBACData(r.Context())
-		if err != nil {
-			http.Error(w, "failed to fetch RBAC data: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.Execute(w, data); err != nil && !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
-			log.Printf("template error: %v", err)
+		if _, err := io.WriteString(w, indexHTML); err != nil && !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			log.Printf("write error: %v", err)
 		}
 	})
 
