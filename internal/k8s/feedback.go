@@ -62,6 +62,48 @@ func (f *FeedbackStore) Set(ctx context.Context, findingID, status string) error
 	return err
 }
 
+// Seed merges seed entries into the ConfigMap without overwriting existing user decisions.
+func (f *FeedbackStore) Seed(ctx context.Context, seed map[string]string) error {
+	if len(seed) == 0 {
+		return nil
+	}
+	existing, err := f.All(ctx)
+	if err != nil {
+		return err
+	}
+	cm, err := f.cs.CoreV1().ConfigMaps(f.namespace).Get(ctx, feedbackConfigMap, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		data := make(map[string]string, len(seed))
+		for k, v := range seed {
+			data[k] = v
+		}
+		cm = &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: feedbackConfigMap, Namespace: f.namespace},
+			Data:       data,
+		}
+		_, err = f.cs.CoreV1().ConfigMaps(f.namespace).Create(ctx, cm, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	if cm.Data == nil {
+		cm.Data = map[string]string{}
+	}
+	changed := false
+	for k, v := range seed {
+		if _, ok := existing[k]; !ok {
+			cm.Data[k] = v
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	_, err = f.cs.CoreV1().ConfigMaps(f.namespace).Update(ctx, cm, metav1.UpdateOptions{})
+	return err
+}
+
 // Delete removes feedback for a finding ID (resets it to "open").
 func (f *FeedbackStore) Delete(ctx context.Context, findingID string) error {
 	cm, err := f.cs.CoreV1().ConfigMaps(f.namespace).Get(ctx, feedbackConfigMap, metav1.GetOptions{})

@@ -263,6 +263,16 @@ func (c *Client) SetFeedback(ctx context.Context, findingID, status string) erro
 	return c.feedback.Set(ctx, findingID, status)
 }
 
+// ExportFeedback returns the full feedback map for export/download.
+func (c *Client) ExportFeedback(ctx context.Context) (map[string]string, error) {
+	return c.feedback.All(ctx)
+}
+
+// SeedFeedback loads seed entries without overwriting existing user decisions.
+func (c *Client) SeedFeedback(ctx context.Context, seed map[string]string) error {
+	return c.feedback.Seed(ctx, seed)
+}
+
 // ---- Converters ----
 
 func toServiceAccountView(sa corev1.ServiceAccount) ServiceAccountView {

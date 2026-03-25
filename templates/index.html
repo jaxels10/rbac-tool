@@ -185,11 +185,15 @@
       <span class="click-hint ms-2">— open issues with your RBAC configuration</span>
     </div>
     <div id="findings-list"></div>
-    <div id="findings-dismissed-wrap" style="display:none">
-      <button class="btn btn-link btn-sm text-muted px-0 mt-2" onclick="toggleDismissed()">
-        <span id="dismissed-toggle-label">Show dismissed</span>
-      </button>
-      <div id="findings-dismissed" style="display:none"></div>
+    <div id="findings-past-wrap" style="display:none" class="mt-4">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <button class="btn btn-link btn-sm text-muted px-0" onclick="togglePastDecisions()">
+          <span id="past-toggle-label">Show past decisions (0)</span>
+        </button>
+        <a href="/api/feedback/export" download="rbac-tool-model.json"
+           class="btn btn-sm btn-outline-secondary">&#x2B07; Download model</a>
+      </div>
+      <div id="findings-past" style="display:none"></div>
     </div>
   </div>
 
@@ -487,50 +491,32 @@
   // ---- Findings ----
 
   function renderFindings(findings) {
-    const open       = findings.filter(f => f.Feedback !== 'dismissed');
-    const dismissed  = findings.filter(f => f.Feedback === 'dismissed');
+    const open    = findings.filter(f => !f.Feedback);
+    const decided = findings.filter(f =>  f.Feedback);
 
+    // Open findings — shown as active warnings
     const list = document.getElementById('findings-list');
-    if (!open.length) {
-      list.innerHTML = '<div class="alert alert-success">No open findings — your RBAC configuration looks clean.</div>';
-    } else {
-      list.innerHTML = open.map(f => findingCardHTML(f)).join('');
-    }
+    list.innerHTML = open.length
+      ? open.map(f => openFindingHTML(f)).join('')
+      : '<div class="alert alert-success mb-0">No open findings — your RBAC configuration looks clean.</div>';
 
-    const wrap = document.getElementById('findings-dismissed-wrap');
-    const dismissedEl = document.getElementById('findings-dismissed');
-    if (dismissed.length) {
+    // Past decisions — no longer shown as warnings
+    const wrap = document.getElementById('findings-past-wrap');
+    if (decided.length) {
       wrap.style.display = '';
-      document.getElementById('dismissed-toggle-label').textContent =
-        dismissedVisible ? `Hide dismissed (${dismissed.length})` : `Show dismissed (${dismissed.length})`;
-      dismissedEl.innerHTML = dismissed.map(f => findingCardHTML(f)).join('');
-      dismissedEl.style.display = dismissedVisible ? '' : 'none';
+      document.getElementById('past-toggle-label').textContent =
+        `${dismissedVisible ? 'Hide' : 'Show'} past decisions (${decided.length})`;
+      document.getElementById('findings-past').innerHTML = decided.map(f => pastDecisionHTML(f)).join('');
+      document.getElementById('findings-past').style.display = dismissedVisible ? '' : 'none';
     } else {
       wrap.style.display = 'none';
     }
   }
 
-  function findingCardHTML(f) {
-    const isDismissed  = f.Feedback === 'dismissed';
-    const isConfirmed  = f.Feedback === 'confirmed';
-    const borderColor  = isDismissed ? '#e2e8f0' : isConfirmed ? '#16a34a' : '#d97706';
-    const opacity      = isDismissed ? 'opacity:.5;' : '';
-    const resources    = (f.Resources || []).map(r => `<code class="me-2" style="font-size:.78rem">${esc(r)}</code>`).join('');
-
-    let buttons = '';
-    if (isDismissed) {
-      buttons = `<button class="btn btn-sm btn-outline-secondary" onclick="sendFeedback('${esc(f.ID)}','')">Undo dismiss</button>`;
-    } else if (isConfirmed) {
-      buttons = `
-        <span class="badge bg-success me-2">&#x2713; Correctly identified</span>
-        <button class="btn btn-sm btn-outline-secondary" onclick="sendFeedback('${esc(f.ID)}','')">Undo</button>`;
-    } else {
-      buttons = `
-        <button class="btn btn-sm btn-success me-2" onclick="sendFeedback('${esc(f.ID)}','confirmed')">&#x2713; Correctly identified</button>
-        <button class="btn btn-sm btn-outline-secondary" onclick="sendFeedback('${esc(f.ID)}','dismissed')">&#x2715; Not an issue</button>`;
-    }
-
-    return `<div class="card mb-3 shadow-sm" style="border-left:4px solid ${borderColor};${opacity}">
+  function openFindingHTML(f) {
+    const resources = (f.Resources || []).map(r =>
+      `<code class="me-2" style="font-size:.78rem">${esc(r)}</code>`).join('');
+    return `<div class="card mb-3 shadow-sm" style="border-left:4px solid #d97706">
       <div class="card-body py-3">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
           <div>
@@ -540,9 +526,27 @@
             <div class="text-muted mt-1" style="font-size:.85rem">${esc(f.Description)}</div>
             ${resources ? `<div class="mt-2">${resources}</div>` : ''}
           </div>
-          <div class="d-flex align-items-center gap-2 flex-shrink-0">${buttons}</div>
+          <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            <button class="btn btn-sm btn-success" onclick="sendFeedback('${esc(f.ID)}','confirmed')">&#x2713; Correctly identified</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="sendFeedback('${esc(f.ID)}','dismissed')">&#x2715; Not an issue</button>
+          </div>
         </div>
       </div>
+    </div>`;
+  }
+
+  function pastDecisionHTML(f) {
+    const isConfirmed = f.Feedback === 'confirmed';
+    const icon  = isConfirmed ? '&#x2713;' : '&#x2715;';
+    const label = isConfirmed ? 'Correctly identified' : 'Marked as not an issue';
+    const color = isConfirmed ? '#16a34a' : '#64748b';
+    return `<div class="d-flex align-items-center justify-content-between py-2 border-bottom gap-3">
+      <div style="font-size:.875rem">
+        <span class="me-2" style="color:${color};font-weight:600">${icon} ${label}</span>
+        <span class="badge bg-light text-dark border me-1" style="font-size:.7rem">${esc(f.Rule)}</span>
+        ${esc(f.Title)}
+      </div>
+      <button class="btn btn-sm btn-link text-muted text-nowrap p-0" onclick="sendFeedback('${esc(f.ID)}','')">Undo</button>
     </div>`;
   }
 
@@ -552,17 +556,16 @@
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({id, status}),
     });
-    // Immediately re-fetch so the UI reflects the change
     lastJson = null;
     fetchAndRender();
   }
 
-  function toggleDismissed() {
+  function togglePastDecisions() {
     dismissedVisible = !dismissedVisible;
-    const el = document.getElementById('findings-dismissed');
-    el.style.display = dismissedVisible ? '' : 'none';
-    document.getElementById('dismissed-toggle-label').textContent =
-      dismissedVisible ? `Hide dismissed` : `Show dismissed`;
+    document.getElementById('findings-past').style.display = dismissedVisible ? '' : 'none';
+    const count = document.getElementById('findings-past').children.length;
+    document.getElementById('past-toggle-label').textContent =
+      `${dismissedVisible ? 'Hide' : 'Show'} past decisions (${count})`;
   }
 
   fetchAndRender();

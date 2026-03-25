@@ -46,12 +46,28 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- if .Values.feedbackSeed }}
+            - name: FEEDBACK_SEED_FILE
+              value: /etc/rbac-tool/feedback.json
+            {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.feedbackSeed }}
+          volumeMounts:
+            - name: feedback-seed
+              mountPath: /etc/rbac-tool
+              readOnly: true
+          {{- end }}
+      {{- if .Values.feedbackSeed }}
+      volumes:
+        - name: feedback-seed
+          configMap:
+            name: {{ include "rbac-tool.fullname" . }}-seed
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

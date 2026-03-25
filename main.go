@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -30,6 +31,22 @@ func main() {
 	client, err := k8s.NewClient()
 	if err != nil {
 		log.Fatalf("failed to create kubernetes client: %v", err)
+	}
+
+	// Optionally seed feedback model from a file mounted at deploy time.
+	if seedFile := os.Getenv("FEEDBACK_SEED_FILE"); seedFile != "" {
+		if raw, err := os.ReadFile(seedFile); err == nil {
+			var seed map[string]string
+			if json.Unmarshal(raw, &seed) == nil {
+				if err := client.SeedFeedback(context.Background(), seed); err != nil {
+					log.Printf("warning: failed to load feedback seed: %v", err)
+				} else {
+					log.Printf("loaded %d feedback entries from seed file", len(seed))
+				}
+			}
+		} else {
+			log.Printf("warning: could not read feedback seed file %s: %v", seedFile, err)
+		}
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +92,23 @@ func main() {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	})
+
+	http.HandleFunc("/api/feedback/export", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fb, err := client.ExportFeedback(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Disposition", `attachment; filename="rbac-tool-model.json"`)
+		if err := json.NewEncoder(w).Encode(fb); err != nil && !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			log.Printf("export encode error: %v", err)
+		}
 	})
 
 	log.Printf("RBAC Tool listening on :%s", port)

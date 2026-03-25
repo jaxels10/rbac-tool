@@ -4,7 +4,7 @@ image:
   repository: ghcr.io/jaxels10/rbac-tool
   pullPolicy: IfNotPresent
   # Overrides the image tag; defaults to the chart appVersion
-  tag: "sha-52f0ba8"
+  tag: "sha-6661015"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -67,3 +67,13 @@ readinessProbe:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# Optional: pre-seed the feedback model at deploy time.
+# Export your trained model via the UI ("Download model"), then paste the
+# contents here. Seed entries are only applied for findings that have no
+# existing user decision — they never overwrite live feedback.
+# Example:
+#   feedbackSeed:
+#     "a1b2c3d4e5f6a7b8": "dismissed"
+#     "b2c3d4e5f6a7b8c9": "confirmed"
+feedbackSeed: {}
