@@ -61,6 +61,13 @@ type ServiceAccountView struct {
 	Age                 string
 	RoleBindings        []SABindingDetail
 	ClusterRoleBindings []SABindingDetail
+	Workloads           []WorkloadView
+}
+
+type WorkloadView struct {
+	Kind      string
+	Namespace string
+	Name      string
 }
 
 type SABindingDetail struct {
@@ -183,6 +190,41 @@ func (c *Client) GetRBACData(ctx context.Context) (*RBACData, error) {
 		}
 	}
 
+	// Workloads — build SA -> workload index
+	saWorkloads := map[string][]WorkloadView{}
+	addWorkload := func(ns, saName, kind, wNs, wName string) {
+		if saName == "" {
+			return
+		}
+		key := ns + "/" + saName
+		saWorkloads[key] = append(saWorkloads[key], WorkloadView{Kind: kind, Namespace: wNs, Name: wName})
+	}
+	if deployList, err := c.cs.AppsV1().Deployments("").List(ctx, metav1.ListOptions{}); err == nil {
+		for _, d := range deployList.Items {
+			addWorkload(d.Namespace, d.Spec.Template.Spec.ServiceAccountName, "Deployment", d.Namespace, d.Name)
+		}
+	}
+	if ssList, err := c.cs.AppsV1().StatefulSets("").List(ctx, metav1.ListOptions{}); err == nil {
+		for _, ss := range ssList.Items {
+			addWorkload(ss.Namespace, ss.Spec.Template.Spec.ServiceAccountName, "StatefulSet", ss.Namespace, ss.Name)
+		}
+	}
+	if dsList, err := c.cs.AppsV1().DaemonSets("").List(ctx, metav1.ListOptions{}); err == nil {
+		for _, ds := range dsList.Items {
+			addWorkload(ds.Namespace, ds.Spec.Template.Spec.ServiceAccountName, "DaemonSet", ds.Namespace, ds.Name)
+		}
+	}
+	if jobList, err := c.cs.BatchV1().Jobs("").List(ctx, metav1.ListOptions{}); err == nil {
+		for _, j := range jobList.Items {
+			addWorkload(j.Namespace, j.Spec.Template.Spec.ServiceAccountName, "Job", j.Namespace, j.Name)
+		}
+	}
+	if cjList, err := c.cs.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{}); err == nil {
+		for _, cj := range cjList.Items {
+			addWorkload(cj.Namespace, cj.Spec.JobTemplate.Spec.Template.Spec.ServiceAccountName, "CronJob", cj.Namespace, cj.Name)
+		}
+	}
+
 	// Service Accounts
 	saList, err := c.cs.CoreV1().ServiceAccounts("").List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -194,6 +236,7 @@ func (c *Client) GetRBACData(ctx context.Context) (*RBACData, error) {
 		sav := toServiceAccountView(sa)
 		sav.RoleBindings = saRoleBindings[key]
 		sav.ClusterRoleBindings = saClusterRoleBindings[key]
+		sav.Workloads = saWorkloads[key]
 		data.ServiceAccounts = append(data.ServiceAccounts, sav)
 	}
 

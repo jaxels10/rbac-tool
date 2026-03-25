@@ -17,3 +17,15 @@ rules:
       - clusterroles
       - clusterrolebindings
     verbs: ["get", "list", "watch"]
+  # Read workloads to show which ones use each service account
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]

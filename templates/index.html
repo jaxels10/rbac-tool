@@ -6,24 +6,51 @@
   <title>RBAC Tool</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
-    body { background: #f8f9fa; }
+    body { background: #f1f5f9; }
     .navbar { background: #1a1f36; }
     .navbar-brand { color: #fff; font-weight: 700; letter-spacing: .5px; }
-    .nav-tabs .nav-link { color: #495057; }
-    .nav-tabs .nav-link.active { font-weight: 600; }
-    .badge-count { font-size: .7rem; }
-    .table th { white-space: nowrap; background: #f1f3f9; }
-    .table td { vertical-align: middle; }
+    .last-updated { font-size: .75rem; color: rgba(255,255,255,.45); }
+
+    /* Summary cards */
+    .card-stat {
+      border: 2px solid transparent !important;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+      user-select: none;
+    }
+    .card-stat:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 18px rgba(0,0,0,.12) !important;
+    }
+    .card-stat.active {
+      border-color: var(--card-color) !important;
+      box-shadow: 0 4px 14px rgba(0,0,0,.1) !important;
+    }
+    .card-stat .stat-num { font-size: 2rem; font-weight: 700; color: var(--card-color); }
+    .card-stat .stat-label { font-size: .8rem; color: #64748b; margin-top: .15rem; }
+    .card-stat .stat-icon { font-size: 1.4rem; margin-bottom: .3rem; }
+
+    /* Sections */
+    .section-title { font-size: 1.1rem; font-weight: 600; color: #1e293b; margin-bottom: 1rem; }
+
+    /* Filters */
+    .filter-bar { background: #fff; border-radius: 10px; padding: .75rem 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+
+    /* Tables */
+    .table th { white-space: nowrap; background: #f8fafc; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+    .table td { vertical-align: middle; font-size: .875rem; }
+    .ns-badge { font-size: .72rem; }
     .subject-list { list-style: none; padding: 0; margin: 0; }
-    .subject-list li { font-size: .85rem; }
-    .rule-table { font-size: .82rem; }
-    .ns-badge { font-size: .75rem; }
-    .card-stat { border: none; border-radius: 12px; }
-    .card-stat .display-6 { font-weight: 700; }
-    .filter-bar { background: #fff; border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-    .sa-row { cursor: pointer; }
-    .sa-row:hover { background: #f0f4ff !important; }
-    .last-updated { font-size: .75rem; color: rgba(255,255,255,.5); }
+    .subject-list li { font-size: .82rem; line-height: 1.6; }
+    .rule-table { font-size: .8rem; }
+
+    /* Clickable SA rows */
+    .sa-row { cursor: pointer; transition: background .1s; }
+    .sa-row:hover td { background: #f0f4ff !important; }
+    .sa-row:hover td:first-child { box-shadow: inset 4px 0 0 #4f46e5; }
+    .sa-row td:first-child { transition: box-shadow .1s; }
+    .click-hint { font-size: .7rem; color: #94a3b8; }
   </style>
 </head>
 <body>
@@ -38,120 +65,113 @@
 
 <div class="container-fluid px-4">
 
-  <!-- Summary cards -->
+  <!-- Clickable summary cards -->
   <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-lg-2">
-      <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-success" id="cnt-sa">–</div>
-        <div class="text-muted small">Service Accounts</div>
+      <div class="card card-stat shadow-sm text-center p-3 active"
+           style="--card-color:#16a34a" data-section="sa" onclick="showSection('sa')">
+        <div class="stat-icon">&#x1F464;</div>
+        <div class="stat-num" id="cnt-sa">–</div>
+        <div class="stat-label">Service Accounts</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
-      <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-primary" id="cnt-roles">–</div>
-        <div class="text-muted small">Roles</div>
+      <div class="card card-stat shadow-sm text-center p-3"
+           style="--card-color:#2563eb" data-section="roles" onclick="showSection('roles')">
+        <div class="stat-icon">&#x1F4CB;</div>
+        <div class="stat-num" id="cnt-roles">–</div>
+        <div class="stat-label">Roles</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
-      <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-secondary" id="cnt-rb">–</div>
-        <div class="text-muted small">Role Bindings</div>
+      <div class="card card-stat shadow-sm text-center p-3"
+           style="--card-color:#0284c7" data-section="rb" onclick="showSection('rb')">
+        <div class="stat-icon">&#x1F517;</div>
+        <div class="stat-num" id="cnt-rb">–</div>
+        <div class="stat-label">Role Bindings</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
-      <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-warning" id="cnt-cr">–</div>
-        <div class="text-muted small">Cluster Roles</div>
+      <div class="card card-stat shadow-sm text-center p-3"
+           style="--card-color:#7c3aed" data-section="cr" onclick="showSection('cr')">
+        <div class="stat-icon">&#x1F6E1;&#xFE0F;</div>
+        <div class="stat-num" id="cnt-cr">–</div>
+        <div class="stat-label">Cluster Roles</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
-      <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-danger" id="cnt-crb">–</div>
-        <div class="text-muted small">ClusterRole Bindings</div>
+      <div class="card card-stat shadow-sm text-center p-3"
+           style="--card-color:#0d9488" data-section="crb" onclick="showSection('crb')">
+        <div class="stat-icon">&#x1F310;</div>
+        <div class="stat-num" id="cnt-crb">–</div>
+        <div class="stat-label">ClusterRole Bindings</div>
       </div>
     </div>
   </div>
 
-  <!-- Namespace filter -->
+  <!-- Filters -->
   <div class="filter-bar d-flex align-items-center gap-3 flex-wrap">
-    <label class="fw-semibold mb-0" for="nsFilter">Namespace</label>
+    <label class="fw-semibold mb-0 small" for="nsFilter">Namespace</label>
     <select id="nsFilter" class="form-select form-select-sm w-auto" onchange="filterNamespace(this.value)">
       <option value="">All namespaces</option>
     </select>
-    <input type="search" id="nameSearch" class="form-control form-control-sm w-auto" placeholder="Search name…" oninput="filterName(this.value)" />
+    <input type="search" id="nameSearch" class="form-control form-control-sm w-auto"
+           placeholder="Search name…" oninput="filterName(this.value)" />
   </div>
 
-  <!-- Tabs -->
-  <ul class="nav nav-tabs mb-3" id="mainTabs">
-    <li class="nav-item">
-      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-sa">
-        Service Accounts <span class="badge bg-success badge-count" id="tab-cnt-sa">0</span>
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-roles">
-        Roles <span class="badge bg-primary badge-count" id="tab-cnt-roles">0</span>
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rb">
-        Role Bindings <span class="badge bg-secondary badge-count" id="tab-cnt-rb">0</span>
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cr">
-        Cluster Roles <span class="badge bg-warning text-dark badge-count" id="tab-cnt-cr">0</span>
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crb">
-        ClusterRole Bindings <span class="badge bg-danger badge-count" id="tab-cnt-crb">0</span>
-      </button>
-    </li>
-  </ul>
-
-  <div class="tab-content">
-    <div class="tab-pane fade show active" id="tab-sa">
-      <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Bindings</th></tr></thead>
-          <tbody id="body-sa"></tbody>
-        </table>
-      </div>
+  <!-- Sections (one visible at a time) -->
+  <div id="section-sa" class="data-section">
+    <div class="section-title">Service Accounts
+      <span class="click-hint ms-2">— click a row to view details</span>
     </div>
-    <div class="tab-pane fade" id="tab-roles">
-      <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
-          <tbody id="body-roles"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="tab-pane fade" id="tab-rb">
-      <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
-          <tbody id="body-rb"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="tab-pane fade" id="tab-cr">
-      <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead><tr><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
-          <tbody id="body-cr"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="tab-pane fade" id="tab-crb">
-      <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead><tr><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
-          <tbody id="body-crb"></tbody>
-        </table>
-      </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm bg-white rounded shadow-sm">
+        <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Bindings</th><th>Workloads</th></tr></thead>
+        <tbody id="body-sa"></tbody>
+      </table>
     </div>
   </div>
+
+  <div id="section-roles" class="data-section" style="display:none">
+    <div class="section-title">Roles</div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm bg-white rounded shadow-sm">
+        <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
+        <tbody id="body-roles"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="section-rb" class="data-section" style="display:none">
+    <div class="section-title">Role Bindings</div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm bg-white rounded shadow-sm">
+        <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
+        <tbody id="body-rb"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="section-cr" class="data-section" style="display:none">
+    <div class="section-title">Cluster Roles</div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm bg-white rounded shadow-sm">
+        <thead><tr><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
+        <tbody id="body-cr"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="section-crb" class="data-section" style="display:none">
+    <div class="section-title">ClusterRole Bindings</div>
+    <div class="table-responsive">
+      <table class="table table-hover table-sm bg-white rounded shadow-sm">
+        <thead><tr><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
+        <tbody id="body-crb"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <!-- SA Detail Modal -->
@@ -169,10 +189,20 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  let lastJson = null;
-  let currentNs = '';
+  let lastJson   = null;
+  let currentNs  = '';
   let currentName = '';
-  const saModal = new bootstrap.Modal(document.getElementById('saModal'));
+  const saModal  = new bootstrap.Modal(document.getElementById('saModal'));
+
+  // ---- Section switching ----
+
+  function showSection(key) {
+    document.querySelectorAll('.data-section').forEach(s => s.style.display = 'none');
+    document.getElementById('section-' + key).style.display = '';
+    document.querySelectorAll('.card-stat').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.card-stat[data-section="${key}"]`).classList.add('active');
+    applyFilters();
+  }
 
   // ---- Fetch & poll ----
 
@@ -202,17 +232,14 @@
     };
     for (const [k, v] of Object.entries(counts)) {
       document.getElementById('cnt-' + k).textContent = v;
-      document.getElementById('tab-cnt-' + k).textContent = v;
     }
 
-    // Rebuild namespace dropdown, preserving current selection
     const nsFilter = document.getElementById('nsFilter');
     const selected = nsFilter.value;
     nsFilter.innerHTML = '<option value="">All namespaces</option>';
     for (const ns of (data.Namespaces || [])) {
       const opt = document.createElement('option');
-      opt.value = ns;
-      opt.textContent = ns;
+      opt.value = ns; opt.textContent = ns;
       if (ns === selected) opt.selected = true;
       nsFilter.appendChild(opt);
     }
@@ -231,18 +258,23 @@
   function renderServiceAccounts(sas) {
     const tbody = document.getElementById('body-sa');
     if (!sas.length) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-muted">No service accounts found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No service accounts found.</td></tr>';
       return;
     }
     tbody.innerHTML = '';
     for (const sa of sas) {
       const rbCount  = (sa.RoleBindings        || []).length;
       const crbCount = (sa.ClusterRoleBindings || []).length;
-      const hasBindings = rbCount + crbCount > 0;
-      const badges = hasBindings
-        ? (rbCount  ? `<span class="badge bg-secondary me-1">${rbCount} RB</span>`  : '')
-        + (crbCount ? `<span class="badge bg-danger">${crbCount} CRB</span>` : '')
-        : '<span class="text-muted" style="font-size:.8rem">none</span>';
+      const wCount   = (sa.Workloads           || []).length;
+
+      const bindingBadges = (rbCount + crbCount) > 0
+        ? (rbCount  ? `<span class="badge me-1" style="background:#0284c7">${rbCount} RB</span>`  : '')
+        + (crbCount ? `<span class="badge" style="background:#0d9488">${crbCount} CRB</span>` : '')
+        : '<span class="text-muted" style="font-size:.78rem">none</span>';
+
+      const workloadBadge = wCount > 0
+        ? `<span class="badge" style="background:#7c3aed">${wCount}</span>`
+        : '<span class="text-muted" style="font-size:.78rem">none</span>';
 
       const tr = document.createElement('tr');
       tr.dataset.ns = sa.Namespace || '';
@@ -252,7 +284,8 @@
         <td><span class="badge bg-light text-dark border ns-badge">${esc(sa.Namespace)}</span></td>
         <td><code>${esc(sa.Name)}</code></td>
         <td>${esc(sa.Age)}</td>
-        <td>${badges}</td>`;
+        <td>${bindingBadges}</td>
+        <td>${workloadBadge}</td>`;
       tbody.appendChild(tr);
     }
   }
@@ -261,16 +294,32 @@
     document.getElementById('saModalLabel').textContent = esc(sa.Namespace) + ' / ' + esc(sa.Name);
     let html = '';
 
-    if ((sa.RoleBindings || []).length) {
-      html += '<h6 class="text-secondary mb-3">Role Bindings</h6>';
-      for (const b of sa.RoleBindings) html += bindingHTML(b, 'secondary', 'RoleBinding');
+    // Workloads
+    if ((sa.Workloads || []).length) {
+      html += '<h6 class="text-secondary mb-2">Workloads</h6>';
+      html += '<table class="table table-sm table-bordered mb-4" style="font-size:.82rem"><thead class="table-light"><tr><th>Kind</th><th>Namespace</th><th>Name</th></tr></thead><tbody>';
+      for (const w of sa.Workloads) {
+        html += `<tr><td>${esc(w.Kind)}</td><td>${esc(w.Namespace)}</td><td><code>${esc(w.Name)}</code></td></tr>`;
+      }
+      html += '</tbody></table>';
     }
+
+    // Role Bindings
+    if ((sa.RoleBindings || []).length) {
+      if (html) html += '<hr>';
+      html += '<h6 class="text-secondary mb-3">Role Bindings</h6>';
+      for (const b of sa.RoleBindings) html += bindingHTML(b, '#0284c7', 'RoleBinding');
+    }
+
+    // ClusterRole Bindings
     if ((sa.ClusterRoleBindings || []).length) {
       if (html) html += '<hr>';
       html += '<h6 class="text-secondary mb-3">ClusterRole Bindings</h6>';
-      for (const b of sa.ClusterRoleBindings) html += bindingHTML(b, 'danger', 'ClusterRoleBinding');
+      for (const b of sa.ClusterRoleBindings) html += bindingHTML(b, '#0d9488', 'ClusterRoleBinding');
     }
-    document.getElementById('saModalBody').innerHTML = html || '<p class="text-muted">This service account has no RoleBindings or ClusterRoleBindings.</p>';
+
+    document.getElementById('saModalBody').innerHTML = html
+      || '<p class="text-muted">This service account has no RoleBindings, ClusterRoleBindings, or workloads.</p>';
     saModal.show();
   }
 
@@ -278,7 +327,7 @@
     const ns = b.BindingNamespace ? esc(b.BindingNamespace) + '/' : '';
     let html = `<div class="mb-4">
       <div class="mb-2">
-        <span class="badge bg-${color}">${kind}</span>
+        <span class="badge" style="background:${color}">${kind}</span>
         <code class="ms-1">${ns}${esc(b.BindingName)}</code>
         <span class="text-muted ms-2" style="font-size:.85rem">→ ${esc(b.RoleRef)}</span>
       </div>`;
@@ -358,7 +407,7 @@
         <td>${esc(rb.Age)}</td>
         <td><code>${esc(rb.RoleRef)}</code></td>
         <td><ul class="subject-list">${(rb.Subjects || []).map(s =>
-          `<li><span class="badge bg-secondary" style="font-size:.7rem">${esc(s.Kind)}</span>
+          `<li><span class="badge bg-light text-dark border" style="font-size:.7rem">${esc(s.Kind)}</span>
            <code>${s.Namespace ? esc(s.Namespace) + '/' : ''}${esc(s.Name)}</code></li>`
         ).join('')}</ul></td>`;
       tbody.appendChild(tr);
@@ -382,7 +431,7 @@
         <td>${esc(crb.Age)}</td>
         <td><code>${esc(crb.RoleRef)}</code></td>
         <td><ul class="subject-list">${(crb.Subjects || []).map(s =>
-          `<li><span class="badge bg-secondary" style="font-size:.7rem">${esc(s.Kind)}</span>
+          `<li><span class="badge bg-light text-dark border" style="font-size:.7rem">${esc(s.Kind)}</span>
            <code>${s.Namespace ? esc(s.Namespace) + '/' : ''}${esc(s.Name)}</code></li>`
         ).join('')}</ul></td>`;
       tbody.appendChild(tr);
