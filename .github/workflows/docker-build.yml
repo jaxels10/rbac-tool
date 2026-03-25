@@ -49,6 +49,23 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=sha-,format=short
 
+      - name: Print image tag
+        if: github.event_name != 'pull_request'
+        run: |
+          PRIMARY_TAG=$(echo "${{ steps.meta.outputs.tags }}" | grep 'sha-' | head -1)
+          echo "================================================"
+          echo "  IMAGE TAG: ${PRIMARY_TAG}"
+          echo "================================================"
+          echo "## Docker image pushed" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${PRIMARY_TAG}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>All tags</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:

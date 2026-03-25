@@ -56,9 +56,18 @@ type RBACData struct {
 }
 
 type ServiceAccountView struct {
-	Namespace string
-	Name      string
-	Age       string
+	Namespace           string
+	Name                string
+	Age                 string
+	RoleBindings        []SABindingDetail
+	ClusterRoleBindings []SABindingDetail
+}
+
+type SABindingDetail struct {
+	BindingName      string
+	BindingNamespace string // empty for ClusterRoleBindings
+	RoleRef          string
+	Rules            []PolicyRuleView
 }
 
 type RoleView struct {
@@ -94,35 +103,18 @@ type SubjectView struct {
 func (c *Client) GetRBACData(ctx context.Context) (*RBACData, error) {
 	data := &RBACData{}
 
-	// Service Accounts
-	saList, err := c.cs.CoreV1().ServiceAccounts("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("list service accounts: %w", err)
-	}
-	nsSet := map[string]struct{}{}
-	for _, sa := range saList.Items {
-		nsSet[sa.Namespace] = struct{}{}
-		data.ServiceAccounts = append(data.ServiceAccounts, toServiceAccountView(sa))
-	}
-
 	// Roles
 	roleList, err := c.cs.RbacV1().Roles("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list roles: %w", err)
 	}
+	roleRules := map[string][]PolicyRuleView{} // "namespace/name" -> rules
+	nsSet := map[string]struct{}{}
 	for _, r := range roleList.Items {
 		nsSet[r.Namespace] = struct{}{}
-		data.Roles = append(data.Roles, toRoleView(r.Namespace, r.Name, r.CreationTimestamp, r.Rules))
-	}
-
-	// RoleBindings
-	rbList, err := c.cs.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("list rolebindings: %w", err)
-	}
-	for _, rb := range rbList.Items {
-		nsSet[rb.Namespace] = struct{}{}
-		data.RoleBindings = append(data.RoleBindings, toBindingView(rb.Namespace, rb.Name, rb.CreationTimestamp, rb.RoleRef, rb.Subjects))
+		rv := toRoleView(r.Namespace, r.Name, r.CreationTimestamp, r.Rules)
+		data.Roles = append(data.Roles, rv)
+		roleRules[r.Namespace+"/"+r.Name] = rv.Rules
 	}
 
 	// ClusterRoles
@@ -130,8 +122,42 @@ func (c *Client) GetRBACData(ctx context.Context) (*RBACData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list clusterroles: %w", err)
 	}
+	clusterRoleRules := map[string][]PolicyRuleView{} // "name" -> rules
 	for _, cr := range crList.Items {
-		data.ClusterRoles = append(data.ClusterRoles, toRoleView("", cr.Name, cr.CreationTimestamp, cr.Rules))
+		rv := toRoleView("", cr.Name, cr.CreationTimestamp, cr.Rules)
+		data.ClusterRoles = append(data.ClusterRoles, rv)
+		clusterRoleRules[cr.Name] = rv.Rules
+	}
+
+	// RoleBindings
+	rbList, err := c.cs.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list rolebindings: %w", err)
+	}
+	// index: "saNamespace/saName" -> []SABindingDetail
+	saRoleBindings := map[string][]SABindingDetail{}
+	for _, rb := range rbList.Items {
+		nsSet[rb.Namespace] = struct{}{}
+		data.RoleBindings = append(data.RoleBindings, toBindingView(rb.Namespace, rb.Name, rb.CreationTimestamp, rb.RoleRef, rb.Subjects))
+		roleRef := rb.RoleRef.Kind + "/" + rb.RoleRef.Name
+		var rules []PolicyRuleView
+		if rb.RoleRef.Kind == "ClusterRole" {
+			rules = clusterRoleRules[rb.RoleRef.Name]
+		} else {
+			rules = roleRules[rb.Namespace+"/"+rb.RoleRef.Name]
+		}
+		for _, s := range rb.Subjects {
+			if s.Kind != "ServiceAccount" {
+				continue
+			}
+			key := s.Namespace + "/" + s.Name
+			saRoleBindings[key] = append(saRoleBindings[key], SABindingDetail{
+				BindingName:      rb.Name,
+				BindingNamespace: rb.Namespace,
+				RoleRef:          roleRef,
+				Rules:            rules,
+			})
+		}
 	}
 
 	// ClusterRoleBindings
@@ -139,8 +165,36 @@ func (c *Client) GetRBACData(ctx context.Context) (*RBACData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list clusterrolebindings: %w", err)
 	}
+	saClusterRoleBindings := map[string][]SABindingDetail{}
 	for _, crb := range crbList.Items {
 		data.ClusterRoleBindings = append(data.ClusterRoleBindings, toBindingView("", crb.Name, crb.CreationTimestamp, crb.RoleRef, crb.Subjects))
+		roleRef := crb.RoleRef.Kind + "/" + crb.RoleRef.Name
+		rules := clusterRoleRules[crb.RoleRef.Name]
+		for _, s := range crb.Subjects {
+			if s.Kind != "ServiceAccount" {
+				continue
+			}
+			key := s.Namespace + "/" + s.Name
+			saClusterRoleBindings[key] = append(saClusterRoleBindings[key], SABindingDetail{
+				BindingName: crb.Name,
+				RoleRef:     roleRef,
+				Rules:       rules,
+			})
+		}
+	}
+
+	// Service Accounts
+	saList, err := c.cs.CoreV1().ServiceAccounts("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list service accounts: %w", err)
+	}
+	for _, sa := range saList.Items {
+		nsSet[sa.Namespace] = struct{}{}
+		key := sa.Namespace + "/" + sa.Name
+		sav := toServiceAccountView(sa)
+		sav.RoleBindings = saRoleBindings[key]
+		sav.ClusterRoleBindings = saClusterRoleBindings[key]
+		data.ServiceAccounts = append(data.ServiceAccounts, sav)
 	}
 
 	// Sorted namespace list

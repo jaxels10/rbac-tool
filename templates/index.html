@@ -115,15 +115,96 @@
     <div class="tab-pane fade show active" id="tab-sa">
       <div class="table-responsive">
         <table class="table table-hover table-sm align-middle" id="tbl-sa">
-          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th></tr></thead>
+          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Bindings</th><th></th></tr></thead>
           <tbody>
             {{range .ServiceAccounts}}
-            <tr data-ns="{{.Namespace}}">
+            <tr data-ns="{{.Namespace}}" class="sa-row" style="cursor:pointer"
+                data-bs-toggle="collapse" data-bs-target="#sa-{{.Namespace}}-{{.Name}}">
               <td><span class="badge bg-light text-dark border ns-badge">{{.Namespace}}</span></td>
               <td><code>{{.Name}}</code></td>
               <td>{{.Age}}</td>
+              <td>
+                {{$rb := len .RoleBindings}}{{$crb := len .ClusterRoleBindings}}
+                {{if or $rb $crb}}
+                  {{if $rb}}<span class="badge bg-secondary me-1">{{$rb}} RB</span>{{end}}
+                  {{if $crb}}<span class="badge bg-danger">{{$crb}} CRB</span>{{end}}
+                {{else}}
+                  <span class="text-muted" style="font-size:.8rem">none</span>
+                {{end}}
+              </td>
+              <td>
+                {{if or (len .RoleBindings) (len .ClusterRoleBindings)}}
+                <span class="text-muted" style="font-size:.75rem">▼</span>
+                {{end}}
+              </td>
             </tr>
-            {{else}}<tr><td colspan="3" class="text-muted">No service accounts found.</td></tr>
+            {{if or (len .RoleBindings) (len .ClusterRoleBindings)}}
+            <tr data-ns="{{.Namespace}}" class="collapse-row">
+              <td colspan="5" class="p-0">
+                <div class="collapse" id="sa-{{.Namespace}}-{{.Name}}">
+                  <div class="p-3 bg-white border-top">
+                    {{if .RoleBindings}}
+                    <div class="fw-semibold mb-2 small text-secondary">Role Bindings</div>
+                    {{range .RoleBindings}}
+                    <div class="mb-3">
+                      <div class="mb-1">
+                        <span class="badge bg-secondary">RoleBinding</span>
+                        <code class="ms-1">{{if .BindingNamespace}}{{.BindingNamespace}}/{{end}}{{.BindingName}}</code>
+                        <span class="text-muted ms-2" style="font-size:.8rem">→ {{.RoleRef}}</span>
+                      </div>
+                      {{if .Rules}}
+                      <table class="table table-sm rule-table mb-0 ms-3">
+                        <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
+                        <tbody>
+                          {{range .Rules}}
+                          <tr>
+                            <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
+                            <td>{{.Resources}}</td>
+                            <td><code>{{.Verbs}}</code></td>
+                          </tr>
+                          {{end}}
+                        </tbody>
+                      </table>
+                      {{else}}
+                      <div class="text-muted ms-3" style="font-size:.8rem">No rules found for referenced role.</div>
+                      {{end}}
+                    </div>
+                    {{end}}
+                    {{end}}
+                    {{if .ClusterRoleBindings}}
+                    <div class="fw-semibold mb-2 small text-secondary {{if .RoleBindings}}mt-2{{end}}">ClusterRole Bindings</div>
+                    {{range .ClusterRoleBindings}}
+                    <div class="mb-3">
+                      <div class="mb-1">
+                        <span class="badge bg-danger">ClusterRoleBinding</span>
+                        <code class="ms-1">{{.BindingName}}</code>
+                        <span class="text-muted ms-2" style="font-size:.8rem">→ {{.RoleRef}}</span>
+                      </div>
+                      {{if .Rules}}
+                      <table class="table table-sm rule-table mb-0 ms-3">
+                        <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
+                        <tbody>
+                          {{range .Rules}}
+                          <tr>
+                            <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
+                            <td>{{.Resources}}</td>
+                            <td><code>{{.Verbs}}</code></td>
+                          </tr>
+                          {{end}}
+                        </tbody>
+                      </table>
+                      {{else}}
+                      <div class="text-muted ms-3" style="font-size:.8rem">No rules found for referenced role.</div>
+                      {{end}}
+                    </div>
+                    {{end}}
+                    {{end}}
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {{end}}
+            {{else}}<tr><td colspan="5" class="text-muted">No service accounts found.</td></tr>
             {{end}}
           </tbody>
         </table>
