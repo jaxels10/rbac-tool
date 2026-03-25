@@ -246,10 +246,8 @@
 
       const tr = document.createElement('tr');
       tr.dataset.ns = sa.Namespace || '';
-      if (hasBindings) {
-        tr.className = 'sa-row';
-        tr.addEventListener('click', () => openSAModal(sa));
-      }
+      tr.className = 'sa-row';
+      tr.addEventListener('click', () => openSAModal(sa));
       tr.innerHTML = `
         <td><span class="badge bg-light text-dark border ns-badge">${esc(sa.Namespace)}</span></td>
         <td><code>${esc(sa.Name)}</code></td>
@@ -272,7 +270,7 @@
       html += '<h6 class="text-secondary mb-3">ClusterRole Bindings</h6>';
       for (const b of sa.ClusterRoleBindings) html += bindingHTML(b, 'danger', 'ClusterRoleBinding');
     }
-    document.getElementById('saModalBody').innerHTML = html || '<p class="text-muted">No bindings found.</p>';
+    document.getElementById('saModalBody').innerHTML = html || '<p class="text-muted">This service account has no RoleBindings or ClusterRoleBindings.</p>';
     saModal.show();
   }
 
