@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RBAC Tool</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background: #f8f9fa; }
+    .navbar { background: #1a1f36; }
+    .navbar-brand { color: #fff; font-weight: 700; letter-spacing: .5px; }
+    .nav-tabs .nav-link { color: #495057; }
+    .nav-tabs .nav-link.active { font-weight: 600; }
+    .badge-count { font-size: .7rem; }
+    .table th { white-space: nowrap; background: #f1f3f9; }
+    .table td { vertical-align: middle; }
+    .subject-list { list-style: none; padding: 0; margin: 0; }
+    .subject-list li { font-size: .85rem; }
+    .rule-table { font-size: .82rem; }
+    .ns-badge { font-size: .75rem; }
+    .card-stat { border: none; border-radius: 12px; }
+    .card-stat .display-6 { font-weight: 700; }
+    .filter-bar { background: #fff; border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .collapsible-rules { cursor: pointer; }
+    pre { white-space: pre-wrap; font-size: .8rem; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark mb-4">
+  <div class="container-fluid">
+    <span class="navbar-brand">&#x1F512; RBAC Tool</span>
+    <span class="text-white-50 small">Kubernetes RBAC Overview</span>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  {{/* ---- Summary cards ---- */}}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-stat shadow-sm text-center p-3">
+        <div class="display-6 text-success">{{len .ServiceAccounts}}</div>
+        <div class="text-muted small">Service Accounts</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-stat shadow-sm text-center p-3">
+        <div class="display-6 text-primary">{{len .Roles}}</div>
+        <div class="text-muted small">Roles</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-stat shadow-sm text-center p-3">
+        <div class="display-6 text-secondary">{{len .RoleBindings}}</div>
+        <div class="text-muted small">Role Bindings</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-stat shadow-sm text-center p-3">
+        <div class="display-6 text-warning">{{len .ClusterRoles}}</div>
+        <div class="text-muted small">Cluster Roles</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-stat shadow-sm text-center p-3">
+        <div class="display-6 text-danger">{{len .ClusterRoleBindings}}</div>
+        <div class="text-muted small">ClusterRole Bindings</div>
+      </div>
+    </div>
+  </div>
+
+  {{/* ---- Namespace filter ---- */}}
+  <div class="filter-bar d-flex align-items-center gap-3 flex-wrap">
+    <label class="fw-semibold mb-0" for="nsFilter">Namespace</label>
+    <select id="nsFilter" class="form-select form-select-sm w-auto" onchange="filterNamespace(this.value)">
+      <option value="">All namespaces</option>
+      {{range .Namespaces}}<option value="{{.}}">{{.}}</option>{{end}}
+    </select>
+    <input type="search" id="nameSearch" class="form-control form-control-sm w-auto" placeholder="Search name…" oninput="filterName(this.value)" />
+  </div>
+
+  {{/* ---- Tabs ---- */}}
+  <ul class="nav nav-tabs mb-3" id="mainTabs">
+    <li class="nav-item">
+      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-sa">
+        Service Accounts <span class="badge bg-success badge-count">{{len .ServiceAccounts}}</span>
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-roles">
+        Roles <span class="badge bg-primary badge-count">{{len .Roles}}</span>
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rb">
+        Role Bindings <span class="badge bg-secondary badge-count">{{len .RoleBindings}}</span>
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cr">
+        Cluster Roles <span class="badge bg-warning text-dark badge-count">{{len .ClusterRoles}}</span>
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crb">
+        ClusterRole Bindings <span class="badge bg-danger badge-count">{{len .ClusterRoleBindings}}</span>
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+
+    {{/* ---- Service Accounts ---- */}}
+    <div class="tab-pane fade show active" id="tab-sa">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle" id="tbl-sa">
+          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th></tr></thead>
+          <tbody>
+            {{range .ServiceAccounts}}
+            <tr data-ns="{{.Namespace}}">
+              <td><span class="badge bg-light text-dark border ns-badge">{{.Namespace}}</span></td>
+              <td><code>{{.Name}}</code></td>
+              <td>{{.Age}}</td>
+            </tr>
+            {{else}}<tr><td colspan="3" class="text-muted">No service accounts found.</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {{/* ---- Roles ---- */}}
+    <div class="tab-pane fade" id="tab-roles">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle" id="tbl-roles">
+          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
+          <tbody>
+            {{range .Roles}}
+            <tr data-ns="{{.Namespace}}">
+              <td><span class="badge bg-light text-dark border ns-badge">{{.Namespace}}</span></td>
+              <td><code>{{.Name}}</code></td>
+              <td>{{.Age}}</td>
+              <td>{{.RulesCount}}</td>
+              <td>
+                {{if .Rules}}
+                <button class="btn btn-outline-secondary btn-sm py-0" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#rules-{{.Namespace}}-{{.Name}}">
+                  Details
+                </button>
+                {{end}}
+              </td>
+            </tr>
+            {{if .Rules}}
+            <tr data-ns="{{.Namespace}}" class="collapse-row">
+              <td colspan="5" class="p-0">
+                <div class="collapse" id="rules-{{.Namespace}}-{{.Name}}">
+                  <div class="p-3">
+                    <table class="table table-sm rule-table mb-0">
+                      <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
+                      <tbody>
+                        {{range .Rules}}
+                        <tr>
+                          <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
+                          <td>{{.Resources}}</td>
+                          <td><code>{{.Verbs}}</code></td>
+                        </tr>
+                        {{end}}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {{end}}
+            {{else}}<tr><td colspan="5" class="text-muted">No roles found.</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {{/* ---- Role Bindings ---- */}}
+    <div class="tab-pane fade" id="tab-rb">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle" id="tbl-rb">
+          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
+          <tbody>
+            {{range .RoleBindings}}
+            <tr data-ns="{{.Namespace}}">
+              <td><span class="badge bg-light text-dark border ns-badge">{{.Namespace}}</span></td>
+              <td><code>{{.Name}}</code></td>
+              <td>{{.Age}}</td>
+              <td><code>{{.RoleRef}}</code></td>
+              <td>
+                <ul class="subject-list">
+                  {{range .Subjects}}
+                  <li>
+                    <span class="badge bg-secondary" style="font-size:.7rem">{{.Kind}}</span>
+                    <code>{{if .Namespace}}{{.Namespace}}/{{end}}{{.Name}}</code>
+                  </li>
+                  {{end}}
+                </ul>
+              </td>
+            </tr>
+            {{else}}<tr><td colspan="5" class="text-muted">No role bindings found.</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {{/* ---- Cluster Roles ---- */}}
+    <div class="tab-pane fade" id="tab-cr">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle" id="tbl-cr">
+          <thead><tr><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
+          <tbody>
+            {{range .ClusterRoles}}
+            <tr data-ns="">
+              <td><code>{{.Name}}</code></td>
+              <td>{{.Age}}</td>
+              <td>{{.RulesCount}}</td>
+              <td>
+                {{if .Rules}}
+                <button class="btn btn-outline-secondary btn-sm py-0" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#crules-{{.Name}}">
+                  Details
+                </button>
+                {{end}}
+              </td>
+            </tr>
+            {{if .Rules}}
+            <tr class="collapse-row">
+              <td colspan="4" class="p-0">
+                <div class="collapse" id="crules-{{.Name}}">
+                  <div class="p-3">
+                    <table class="table table-sm rule-table mb-0">
+                      <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
+                      <tbody>
+                        {{range .Rules}}
+                        <tr>
+                          <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
+                          <td>{{.Resources}}</td>
+                          <td><code>{{.Verbs}}</code></td>
+                        </tr>
+                        {{end}}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {{end}}
+            {{else}}<tr><td colspan="4" class="text-muted">No cluster roles found.</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {{/* ---- ClusterRole Bindings ---- */}}
+    <div class="tab-pane fade" id="tab-crb">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle" id="tbl-crb">
+          <thead><tr><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
+          <tbody>
+            {{range .ClusterRoleBindings}}
+            <tr data-ns="">
+              <td><code>{{.Name}}</code></td>
+              <td>{{.Age}}</td>
+              <td><code>{{.RoleRef}}</code></td>
+              <td>
+                <ul class="subject-list">
+                  {{range .Subjects}}
+                  <li>
+                    <span class="badge bg-secondary" style="font-size:.7rem">{{.Kind}}</span>
+                    <code>{{if .Namespace}}{{.Namespace}}/{{end}}{{.Name}}</code>
+                  </li>
+                  {{end}}
+                </ul>
+              </td>
+            </tr>
+            {{else}}<tr><td colspan="4" class="text-muted">No cluster role bindings found.</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>{{/* end tab-content */}}
+</div>{{/* end container */}}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  let currentNs = "";
+  let currentName = "";
+
+  function applyFilters() {
+    document.querySelectorAll("table tbody tr[data-ns]").forEach(row => {
+      const ns = row.getAttribute("data-ns");
+      const nameEl = row.querySelector("code");
+      const name = nameEl ? nameEl.textContent.toLowerCase() : "";
+
+      const nsOk = !currentNs || ns === currentNs;
+      const nameOk = !currentName || name.includes(currentName.toLowerCase());
+
+      row.style.display = nsOk && nameOk ? "" : "none";
+    });
+  }
+
+  function filterNamespace(val) { currentNs = val; applyFilters(); }
+  function filterName(val) { currentName = val; applyFilters(); }
+</script>
+</body>
+</html>

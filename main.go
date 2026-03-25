@@ -1,0 +1,60 @@
+package main
+
+import (
+	_ "embed"
+	"encoding/json"
+	"html/template"
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/user/rbac-tool/internal/k8s"
+)
+
+//go:embed templates/index.html
+var indexHTML string
+
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	client, err := k8s.NewClient()
+	if err != nil {
+		log.Fatalf("failed to create kubernetes client: %v", err)
+	}
+
+	tmpl := template.Must(template.New("index").Parse(indexHTML))
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		data, err := client.GetRBACData(r.Context())
+		if err != nil {
+			http.Error(w, "failed to fetch RBAC data: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := tmpl.Execute(w, data); err != nil {
+			log.Printf("template error: %v", err)
+		}
+	})
+
+	http.HandleFunc("/api/rbac", func(w http.ResponseWriter, r *http.Request) {
+		data, err := client.GetRBACData(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			log.Printf("json encode error: %v", err)
+		}
+	})
+
+	log.Printf("RBAC Tool listening on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
+}

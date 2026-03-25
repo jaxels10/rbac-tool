@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "rbac-tool.fullname" . }}
+  labels:
+    {{- include "rbac-tool.labels" . | nindent 4 }}
+rules:
+  # Read namespaces so we can enumerate them
+  - apiGroups: [""]
+    resources: ["namespaces", "serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+  # Read all RBAC resources cluster-wide
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch"]
