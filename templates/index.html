@@ -21,8 +21,9 @@
     .card-stat { border: none; border-radius: 12px; }
     .card-stat .display-6 { font-weight: 700; }
     .filter-bar { background: #fff; border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-    .collapsible-rules { cursor: pointer; }
-    pre { white-space: pre-wrap; font-size: .8rem; }
+    .sa-row { cursor: pointer; }
+    .sa-row:hover { background: #f0f4ff !important; }
+    .last-updated { font-size: .75rem; color: rgba(255,255,255,.5); }
   </style>
 </head>
 <body>
@@ -31,367 +32,387 @@
   <div class="container-fluid">
     <span class="navbar-brand">&#x1F512; RBAC Tool</span>
     <span class="text-white-50 small">Kubernetes RBAC Overview</span>
+    <span class="last-updated ms-auto" id="lastUpdated">Loading…</span>
   </div>
 </nav>
 
 <div class="container-fluid px-4">
 
-  {{/* ---- Summary cards ---- */}}
+  <!-- Summary cards -->
   <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-lg-2">
       <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-success">{{len .ServiceAccounts}}</div>
+        <div class="display-6 text-success" id="cnt-sa">–</div>
         <div class="text-muted small">Service Accounts</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
       <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-primary">{{len .Roles}}</div>
+        <div class="display-6 text-primary" id="cnt-roles">–</div>
         <div class="text-muted small">Roles</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
       <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-secondary">{{len .RoleBindings}}</div>
+        <div class="display-6 text-secondary" id="cnt-rb">–</div>
         <div class="text-muted small">Role Bindings</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
       <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-warning">{{len .ClusterRoles}}</div>
+        <div class="display-6 text-warning" id="cnt-cr">–</div>
         <div class="text-muted small">Cluster Roles</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
       <div class="card card-stat shadow-sm text-center p-3">
-        <div class="display-6 text-danger">{{len .ClusterRoleBindings}}</div>
+        <div class="display-6 text-danger" id="cnt-crb">–</div>
         <div class="text-muted small">ClusterRole Bindings</div>
       </div>
     </div>
   </div>
 
-  {{/* ---- Namespace filter ---- */}}
+  <!-- Namespace filter -->
   <div class="filter-bar d-flex align-items-center gap-3 flex-wrap">
     <label class="fw-semibold mb-0" for="nsFilter">Namespace</label>
     <select id="nsFilter" class="form-select form-select-sm w-auto" onchange="filterNamespace(this.value)">
       <option value="">All namespaces</option>
-      {{range .Namespaces}}<option value="{{.}}">{{.}}</option>{{end}}
     </select>
     <input type="search" id="nameSearch" class="form-control form-control-sm w-auto" placeholder="Search name…" oninput="filterName(this.value)" />
   </div>
 
-  {{/* ---- Tabs ---- */}}
+  <!-- Tabs -->
   <ul class="nav nav-tabs mb-3" id="mainTabs">
     <li class="nav-item">
       <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-sa">
-        Service Accounts <span class="badge bg-success badge-count">{{len .ServiceAccounts}}</span>
+        Service Accounts <span class="badge bg-success badge-count" id="tab-cnt-sa">0</span>
       </button>
     </li>
     <li class="nav-item">
       <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-roles">
-        Roles <span class="badge bg-primary badge-count">{{len .Roles}}</span>
+        Roles <span class="badge bg-primary badge-count" id="tab-cnt-roles">0</span>
       </button>
     </li>
     <li class="nav-item">
       <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rb">
-        Role Bindings <span class="badge bg-secondary badge-count">{{len .RoleBindings}}</span>
+        Role Bindings <span class="badge bg-secondary badge-count" id="tab-cnt-rb">0</span>
       </button>
     </li>
     <li class="nav-item">
       <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cr">
-        Cluster Roles <span class="badge bg-warning text-dark badge-count">{{len .ClusterRoles}}</span>
+        Cluster Roles <span class="badge bg-warning text-dark badge-count" id="tab-cnt-cr">0</span>
       </button>
     </li>
     <li class="nav-item">
       <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crb">
-        ClusterRole Bindings <span class="badge bg-danger badge-count">{{len .ClusterRoleBindings}}</span>
+        ClusterRole Bindings <span class="badge bg-danger badge-count" id="tab-cnt-crb">0</span>
       </button>
     </li>
   </ul>
 
   <div class="tab-content">
-
-    {{/* ---- Service Accounts ---- */}}
     <div class="tab-pane fade show active" id="tab-sa">
       <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle" id="tbl-sa">
-          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Bindings</th><th></th></tr></thead>
-          <tbody>
-            {{range .ServiceAccounts}}
-            <tr data-ns="{{.Namespace}}" class="sa-row" style="cursor:pointer"
-                data-bs-toggle="collapse" data-bs-target="#sa-{{.Namespace}}-{{.Name}}">
-              <td><span class="badge bg-light text-dark border ns-badge">{{.Namespace}}</span></td>
-              <td><code>{{.Name}}</code></td>
-              <td>{{.Age}}</td>
-              <td>
-                {{$rb := len .RoleBindings}}{{$crb := len .ClusterRoleBindings}}
-                {{if or $rb $crb}}
-                  {{if $rb}}<span class="badge bg-secondary me-1">{{$rb}} RB</span>{{end}}
-                  {{if $crb}}<span class="badge bg-danger">{{$crb}} CRB</span>{{end}}
-                {{else}}
-                  <span class="text-muted" style="font-size:.8rem">none</span>
-                {{end}}
-              </td>
-              <td>
-                {{if or (len .RoleBindings) (len .ClusterRoleBindings)}}
-                <span class="text-muted" style="font-size:.75rem">▼</span>
-                {{end}}
-              </td>
-            </tr>
-            {{if or (len .RoleBindings) (len .ClusterRoleBindings)}}
-            <tr data-ns="{{.Namespace}}" class="collapse-row">
-              <td colspan="5" class="p-0">
-                <div class="collapse" id="sa-{{.Namespace}}-{{.Name}}">
-                  <div class="p-3 bg-white border-top">
-                    {{if .RoleBindings}}
-                    <div class="fw-semibold mb-2 small text-secondary">Role Bindings</div>
-                    {{range .RoleBindings}}
-                    <div class="mb-3">
-                      <div class="mb-1">
-                        <span class="badge bg-secondary">RoleBinding</span>
-                        <code class="ms-1">{{if .BindingNamespace}}{{.BindingNamespace}}/{{end}}{{.BindingName}}</code>
-                        <span class="text-muted ms-2" style="font-size:.8rem">→ {{.RoleRef}}</span>
-                      </div>
-                      {{if .Rules}}
-                      <table class="table table-sm rule-table mb-0 ms-3">
-                        <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
-                        <tbody>
-                          {{range .Rules}}
-                          <tr>
-                            <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
-                            <td>{{.Resources}}</td>
-                            <td><code>{{.Verbs}}</code></td>
-                          </tr>
-                          {{end}}
-                        </tbody>
-                      </table>
-                      {{else}}
-                      <div class="text-muted ms-3" style="font-size:.8rem">No rules found for referenced role.</div>
-                      {{end}}
-                    </div>
-                    {{end}}
-                    {{end}}
-                    {{if .ClusterRoleBindings}}
-                    <div class="fw-semibold mb-2 small text-secondary {{if .RoleBindings}}mt-2{{end}}">ClusterRole Bindings</div>
-                    {{range .ClusterRoleBindings}}
-                    <div class="mb-3">
-                      <div class="mb-1">
-                        <span class="badge bg-danger">ClusterRoleBinding</span>
-                        <code class="ms-1">{{.BindingName}}</code>
-                        <span class="text-muted ms-2" style="font-size:.8rem">→ {{.RoleRef}}</span>
-                      </div>
-                      {{if .Rules}}
-                      <table class="table table-sm rule-table mb-0 ms-3">
-                        <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
-                        <tbody>
-                          {{range .Rules}}
-                          <tr>
-                            <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
-                            <td>{{.Resources}}</td>
-                            <td><code>{{.Verbs}}</code></td>
-                          </tr>
-                          {{end}}
-                        </tbody>
-                      </table>
-                      {{else}}
-                      <div class="text-muted ms-3" style="font-size:.8rem">No rules found for referenced role.</div>
-                      {{end}}
-                    </div>
-                    {{end}}
-                    {{end}}
-                  </div>
-                </div>
-              </td>
-            </tr>
-            {{end}}
-            {{else}}<tr><td colspan="5" class="text-muted">No service accounts found.</td></tr>
-            {{end}}
-          </tbody>
+        <table class="table table-hover table-sm align-middle">
+          <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Bindings</th></tr></thead>
+          <tbody id="body-sa"></tbody>
         </table>
       </div>
     </div>
-
-    {{/* ---- Roles ---- */}}
     <div class="tab-pane fade" id="tab-roles">
       <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle" id="tbl-roles">
+        <table class="table table-hover table-sm align-middle">
           <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
-          <tbody>
-            {{range .Roles}}
-            <tr data-ns="{{.Namespace}}">
-              <td><span class="badge bg-light text-dark border ns-badge">{{.Namespace}}</span></td>
-              <td><code>{{.Name}}</code></td>
-              <td>{{.Age}}</td>
-              <td>{{.RulesCount}}</td>
-              <td>
-                {{if .Rules}}
-                <button class="btn btn-outline-secondary btn-sm py-0" type="button"
-                  data-bs-toggle="collapse" data-bs-target="#rules-{{.Namespace}}-{{.Name}}">
-                  Details
-                </button>
-                {{end}}
-              </td>
-            </tr>
-            {{if .Rules}}
-            <tr data-ns="{{.Namespace}}" class="collapse-row">
-              <td colspan="5" class="p-0">
-                <div class="collapse" id="rules-{{.Namespace}}-{{.Name}}">
-                  <div class="p-3">
-                    <table class="table table-sm rule-table mb-0">
-                      <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
-                      <tbody>
-                        {{range .Rules}}
-                        <tr>
-                          <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
-                          <td>{{.Resources}}</td>
-                          <td><code>{{.Verbs}}</code></td>
-                        </tr>
-                        {{end}}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </td>
-            </tr>
-            {{end}}
-            {{else}}<tr><td colspan="5" class="text-muted">No roles found.</td></tr>
-            {{end}}
-          </tbody>
+          <tbody id="body-roles"></tbody>
         </table>
       </div>
     </div>
-
-    {{/* ---- Role Bindings ---- */}}
     <div class="tab-pane fade" id="tab-rb">
       <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle" id="tbl-rb">
+        <table class="table table-hover table-sm align-middle">
           <thead><tr><th>Namespace</th><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
-          <tbody>
-            {{range .RoleBindings}}
-            <tr data-ns="{{.Namespace}}">
-              <td><span class="badge bg-light text-dark border ns-badge">{{.Namespace}}</span></td>
-              <td><code>{{.Name}}</code></td>
-              <td>{{.Age}}</td>
-              <td><code>{{.RoleRef}}</code></td>
-              <td>
-                <ul class="subject-list">
-                  {{range .Subjects}}
-                  <li>
-                    <span class="badge bg-secondary" style="font-size:.7rem">{{.Kind}}</span>
-                    <code>{{if .Namespace}}{{.Namespace}}/{{end}}{{.Name}}</code>
-                  </li>
-                  {{end}}
-                </ul>
-              </td>
-            </tr>
-            {{else}}<tr><td colspan="5" class="text-muted">No role bindings found.</td></tr>
-            {{end}}
-          </tbody>
+          <tbody id="body-rb"></tbody>
         </table>
       </div>
     </div>
-
-    {{/* ---- Cluster Roles ---- */}}
     <div class="tab-pane fade" id="tab-cr">
       <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle" id="tbl-cr">
+        <table class="table table-hover table-sm align-middle">
           <thead><tr><th>Name</th><th>Age</th><th>Rules</th><th></th></tr></thead>
-          <tbody>
-            {{range .ClusterRoles}}
-            <tr data-ns="">
-              <td><code>{{.Name}}</code></td>
-              <td>{{.Age}}</td>
-              <td>{{.RulesCount}}</td>
-              <td>
-                {{if .Rules}}
-                <button class="btn btn-outline-secondary btn-sm py-0" type="button"
-                  data-bs-toggle="collapse" data-bs-target="#crules-{{.Name}}">
-                  Details
-                </button>
-                {{end}}
-              </td>
-            </tr>
-            {{if .Rules}}
-            <tr class="collapse-row">
-              <td colspan="4" class="p-0">
-                <div class="collapse" id="crules-{{.Name}}">
-                  <div class="p-3">
-                    <table class="table table-sm rule-table mb-0">
-                      <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
-                      <tbody>
-                        {{range .Rules}}
-                        <tr>
-                          <td><code>{{if .APIGroups}}{{.APIGroups}}{{else}}core{{end}}</code></td>
-                          <td>{{.Resources}}</td>
-                          <td><code>{{.Verbs}}</code></td>
-                        </tr>
-                        {{end}}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </td>
-            </tr>
-            {{end}}
-            {{else}}<tr><td colspan="4" class="text-muted">No cluster roles found.</td></tr>
-            {{end}}
-          </tbody>
+          <tbody id="body-cr"></tbody>
         </table>
       </div>
     </div>
-
-    {{/* ---- ClusterRole Bindings ---- */}}
     <div class="tab-pane fade" id="tab-crb">
       <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle" id="tbl-crb">
+        <table class="table table-hover table-sm align-middle">
           <thead><tr><th>Name</th><th>Age</th><th>Role Ref</th><th>Subjects</th></tr></thead>
-          <tbody>
-            {{range .ClusterRoleBindings}}
-            <tr data-ns="">
-              <td><code>{{.Name}}</code></td>
-              <td>{{.Age}}</td>
-              <td><code>{{.RoleRef}}</code></td>
-              <td>
-                <ul class="subject-list">
-                  {{range .Subjects}}
-                  <li>
-                    <span class="badge bg-secondary" style="font-size:.7rem">{{.Kind}}</span>
-                    <code>{{if .Namespace}}{{.Namespace}}/{{end}}{{.Name}}</code>
-                  </li>
-                  {{end}}
-                </ul>
-              </td>
-            </tr>
-            {{else}}<tr><td colspan="4" class="text-muted">No cluster role bindings found.</td></tr>
-            {{end}}
-          </tbody>
+          <tbody id="body-crb"></tbody>
         </table>
       </div>
     </div>
+  </div>
+</div>
 
-  </div>{{/* end tab-content */}}
-</div>{{/* end container */}}
+<!-- SA Detail Modal -->
+<div class="modal fade" id="saModal" tabindex="-1" aria-labelledby="saModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="saModalLabel"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="saModalBody"></div>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  let currentNs = "";
-  let currentName = "";
+  let lastJson = null;
+  let currentNs = '';
+  let currentName = '';
+  const saModal = new bootstrap.Modal(document.getElementById('saModal'));
+
+  // ---- Fetch & poll ----
+
+  async function fetchAndRender() {
+    try {
+      const res = await fetch('/api/rbac');
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      const json = JSON.stringify(data);
+      if (json !== lastJson) {
+        lastJson = json;
+        render(data);
+      }
+      document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    } catch {
+      document.getElementById('lastUpdated').textContent = 'Error fetching data';
+    }
+  }
+
+  function render(data) {
+    const counts = {
+      sa:    (data.ServiceAccounts     || []).length,
+      roles: (data.Roles               || []).length,
+      rb:    (data.RoleBindings        || []).length,
+      cr:    (data.ClusterRoles        || []).length,
+      crb:   (data.ClusterRoleBindings || []).length,
+    };
+    for (const [k, v] of Object.entries(counts)) {
+      document.getElementById('cnt-' + k).textContent = v;
+      document.getElementById('tab-cnt-' + k).textContent = v;
+    }
+
+    // Rebuild namespace dropdown, preserving current selection
+    const nsFilter = document.getElementById('nsFilter');
+    const selected = nsFilter.value;
+    nsFilter.innerHTML = '<option value="">All namespaces</option>';
+    for (const ns of (data.Namespaces || [])) {
+      const opt = document.createElement('option');
+      opt.value = ns;
+      opt.textContent = ns;
+      if (ns === selected) opt.selected = true;
+      nsFilter.appendChild(opt);
+    }
+
+    renderServiceAccounts(data.ServiceAccounts || []);
+    renderRoles(data.Roles || [],               'body-roles', 5, true);
+    renderRoleBindings(data.RoleBindings || []);
+    renderRoles(data.ClusterRoles || [],        'body-cr',    4, false);
+    renderClusterRoleBindings(data.ClusterRoleBindings || []);
+
+    applyFilters();
+  }
+
+  // ---- Service Accounts ----
+
+  function renderServiceAccounts(sas) {
+    const tbody = document.getElementById('body-sa');
+    if (!sas.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-muted">No service accounts found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    for (const sa of sas) {
+      const rbCount  = (sa.RoleBindings        || []).length;
+      const crbCount = (sa.ClusterRoleBindings || []).length;
+      const hasBindings = rbCount + crbCount > 0;
+      const badges = hasBindings
+        ? (rbCount  ? `<span class="badge bg-secondary me-1">${rbCount} RB</span>`  : '')
+        + (crbCount ? `<span class="badge bg-danger">${crbCount} CRB</span>` : '')
+        : '<span class="text-muted" style="font-size:.8rem">none</span>';
+
+      const tr = document.createElement('tr');
+      tr.dataset.ns = sa.Namespace || '';
+      if (hasBindings) {
+        tr.className = 'sa-row';
+        tr.addEventListener('click', () => openSAModal(sa));
+      }
+      tr.innerHTML = `
+        <td><span class="badge bg-light text-dark border ns-badge">${esc(sa.Namespace)}</span></td>
+        <td><code>${esc(sa.Name)}</code></td>
+        <td>${esc(sa.Age)}</td>
+        <td>${badges}</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function openSAModal(sa) {
+    document.getElementById('saModalLabel').textContent = esc(sa.Namespace) + ' / ' + esc(sa.Name);
+    let html = '';
+
+    if ((sa.RoleBindings || []).length) {
+      html += '<h6 class="text-secondary mb-3">Role Bindings</h6>';
+      for (const b of sa.RoleBindings) html += bindingHTML(b, 'secondary', 'RoleBinding');
+    }
+    if ((sa.ClusterRoleBindings || []).length) {
+      if (html) html += '<hr>';
+      html += '<h6 class="text-secondary mb-3">ClusterRole Bindings</h6>';
+      for (const b of sa.ClusterRoleBindings) html += bindingHTML(b, 'danger', 'ClusterRoleBinding');
+    }
+    document.getElementById('saModalBody').innerHTML = html || '<p class="text-muted">No bindings found.</p>';
+    saModal.show();
+  }
+
+  function bindingHTML(b, color, kind) {
+    const ns = b.BindingNamespace ? esc(b.BindingNamespace) + '/' : '';
+    let html = `<div class="mb-4">
+      <div class="mb-2">
+        <span class="badge bg-${color}">${kind}</span>
+        <code class="ms-1">${ns}${esc(b.BindingName)}</code>
+        <span class="text-muted ms-2" style="font-size:.85rem">→ ${esc(b.RoleRef)}</span>
+      </div>`;
+    if ((b.Rules || []).length) {
+      html += `<table class="table table-sm table-bordered mb-0 rule-table">
+        <thead class="table-light"><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead><tbody>`;
+      for (const r of b.Rules) {
+        html += `<tr>
+          <td><code>${r.APIGroups ? esc(r.APIGroups) : 'core'}</code></td>
+          <td>${esc(r.Resources)}</td>
+          <td><code>${esc(r.Verbs)}</code></td></tr>`;
+      }
+      html += '</tbody></table>';
+    } else {
+      html += '<p class="text-muted mb-0" style="font-size:.85rem">No rules found for referenced role.</p>';
+    }
+    return html + '</div>';
+  }
+
+  // ---- Roles & ClusterRoles ----
+
+  function renderRoles(roles, tbodyId, colspan, hasNs) {
+    const tbody = document.getElementById(tbodyId);
+    if (!roles.length) {
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-muted">No roles found.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = '';
+    roles.forEach((role, i) => {
+      const id = `r-${tbodyId}-${i}`;
+      const tr = document.createElement('tr');
+      tr.dataset.ns = role.Namespace || '';
+      tr.innerHTML =
+        (hasNs ? `<td><span class="badge bg-light text-dark border ns-badge">${esc(role.Namespace)}</span></td>` : '') +
+        `<td><code>${esc(role.Name)}</code></td>
+        <td>${esc(role.Age)}</td>
+        <td>${role.RulesCount}</td>
+        <td>${(role.Rules || []).length
+          ? `<button class="btn btn-outline-secondary btn-sm py-0" type="button" data-bs-toggle="collapse" data-bs-target="#${id}">Details</button>`
+          : ''}</td>`;
+      tbody.appendChild(tr);
+
+      if ((role.Rules || []).length) {
+        const trDetail = document.createElement('tr');
+        trDetail.dataset.ns = role.Namespace || '';
+        trDetail.innerHTML = `<td colspan="${colspan}" class="p-0">
+          <div class="collapse" id="${id}"><div class="p-3">
+            <table class="table table-sm rule-table mb-0">
+              <thead><tr><th>API Groups</th><th>Resources</th><th>Verbs</th></tr></thead>
+              <tbody>${role.Rules.map(r => `<tr>
+                <td><code>${r.APIGroups ? esc(r.APIGroups) : 'core'}</code></td>
+                <td>${esc(r.Resources)}</td>
+                <td><code>${esc(r.Verbs)}</code></td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div></div></td>`;
+        tbody.appendChild(trDetail);
+      }
+    });
+  }
+
+  // ---- Role Bindings ----
+
+  function renderRoleBindings(rbs) {
+    const tbody = document.getElementById('body-rb');
+    if (!rbs.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No role bindings found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    for (const rb of rbs) {
+      const tr = document.createElement('tr');
+      tr.dataset.ns = rb.Namespace || '';
+      tr.innerHTML = `
+        <td><span class="badge bg-light text-dark border ns-badge">${esc(rb.Namespace)}</span></td>
+        <td><code>${esc(rb.Name)}</code></td>
+        <td>${esc(rb.Age)}</td>
+        <td><code>${esc(rb.RoleRef)}</code></td>
+        <td><ul class="subject-list">${(rb.Subjects || []).map(s =>
+          `<li><span class="badge bg-secondary" style="font-size:.7rem">${esc(s.Kind)}</span>
+           <code>${s.Namespace ? esc(s.Namespace) + '/' : ''}${esc(s.Name)}</code></li>`
+        ).join('')}</ul></td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  // ---- ClusterRole Bindings ----
+
+  function renderClusterRoleBindings(crbs) {
+    const tbody = document.getElementById('body-crb');
+    if (!crbs.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-muted">No cluster role bindings found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    for (const crb of crbs) {
+      const tr = document.createElement('tr');
+      tr.dataset.ns = '';
+      tr.innerHTML = `
+        <td><code>${esc(crb.Name)}</code></td>
+        <td>${esc(crb.Age)}</td>
+        <td><code>${esc(crb.RoleRef)}</code></td>
+        <td><ul class="subject-list">${(crb.Subjects || []).map(s =>
+          `<li><span class="badge bg-secondary" style="font-size:.7rem">${esc(s.Kind)}</span>
+           <code>${s.Namespace ? esc(s.Namespace) + '/' : ''}${esc(s.Name)}</code></li>`
+        ).join('')}</ul></td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  // ---- Filters ----
 
   function applyFilters() {
-    document.querySelectorAll("table tbody tr[data-ns]").forEach(row => {
-      const ns = row.getAttribute("data-ns");
-      const nameEl = row.querySelector("code");
-      const name = nameEl ? nameEl.textContent.toLowerCase() : "";
-
-      const nsOk = !currentNs || ns === currentNs;
-      const nameOk = !currentName || name.includes(currentName.toLowerCase());
-
-      row.style.display = nsOk && nameOk ? "" : "none";
+    document.querySelectorAll('table tbody tr[data-ns]').forEach(row => {
+      const ns = row.dataset.ns;
+      const nameEl = row.querySelector('code');
+      const name = nameEl ? nameEl.textContent.toLowerCase() : '';
+      row.style.display =
+        (!currentNs || ns === currentNs) && (!currentName || name.includes(currentName.toLowerCase()))
+          ? '' : 'none';
     });
   }
 
   function filterNamespace(val) { currentNs = val; applyFilters(); }
-  function filterName(val) { currentName = val; applyFilters(); }
+  function filterName(val)      { currentName = val; applyFilters(); }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  fetchAndRender();
+  setInterval(fetchAndRender, 5000);
 </script>
 </body>
 </html>
